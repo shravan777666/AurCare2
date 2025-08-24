@@ -1,37 +1,75 @@
 const mongoose = require('mongoose');
 
+mongoose.set('strictQuery', true);
+
 const connectDB = async () => {
-  try {
-    const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/auracare';
-    
-    await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-      family: 4 // Use IPv4, skip trying IPv6
-    });
-    
-    console.log('✅ MongoDB Connected Successfully');
-    console.log(`📊 Database: ${mongoose.connection.name}`);
-    console.log(`🔗 URI: ${mongoURI}`);
-    
-  } catch (err) {
-    console.error('❌ MongoDB Connection Error:', err.message);
-    
-    if (err.name === 'MongoNetworkError') {
-      console.error('💡 Make sure MongoDB is running on your system');
-      console.error('💡 For Windows: Start MongoDB service');
-      console.error('💡 For Mac/Linux: Run "mongod" command');
+  const maxRetries = 5;
+  let retries = 0;
+
+  const connect = async () => {
+    try {
+      const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/auracare';
+
+      await mongoose.connect(mongoURI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+        family: 4
+      });
+
+      console.log('✅ MongoDB Connected Successfully');
+      console.log(`📊 Database: ${mongoose.connection.name}`);
+      console.log(`🔗 URI: ${mongoURI}`);
+
+    } catch (error) {
+      console.error('❌ MongoDB Connection Error:', error.message);
+      
+      if (error.name === 'MongoNetworkError') {
+        console.error('💡 Make sure MongoDB is running on your system');
+        console.error('💡 For Windows: Start MongoDB service');
+        console.error('💡 For Mac/Linux: Run "mongod" command');
+      }
+      
+      if (error.name === 'MongoServerSelectionError') {
+        console.error('💡 Check if MongoDB is accessible at the specified URI');
+      }
+
+      if (retries < maxRetries) {
+        retries++;
+        console.log(`⏳ Retrying connection... Attempt ${retries} of ${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        return connect();
+      } else {
+        if (process.env.NODE_ENV === 'production') {
+          console.error('❌ Failed to connect to MongoDB after multiple attempts');
+          process.exit(1);
+        } else {
+          console.warn('⚠️ Failed to connect to MongoDB, but continuing in development mode');
+        }
+      }
     }
-    
-    if (err.name === 'MongoServerSelectionError') {
-      console.error('💡 Check if MongoDB is accessible at the specified URI');
-    }
-    
-    // Don't exit in development, just log the error
+  };
+
+  await connect();
+
+  // Set up connection event handlers
+  mongoose.connection.on('disconnected', () => {
+    console.log('🔌 MongoDB disconnected');
     if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
+      connectDB(); // Attempt to reconnect
     }
-  }
+  });
+
+  mongoose.connection.on('error', (err) => {
+    console.error('🚨 MongoDB error:', err);
+  });
+
+  process.on('SIGINT', async () => {
+    await mongoose.connection.close();
+    console.log('MongoDB connection closed through app termination');
+    process.exit(0);
+  });
 };
 
 module.exports = connectDB;

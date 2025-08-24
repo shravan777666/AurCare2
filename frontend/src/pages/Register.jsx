@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import GoogleAuthButton from '../components/GoogleAuthButton'
 
 // Hardcode backend URL to avoid proxy/env issues
 const API_BASE = 'http://localhost:5000/api'
@@ -71,6 +72,10 @@ function Register() {
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-bold tracking-tight">Register as Salon Owner</h2>
           <p className="text-sm text-gray-600">Provide your details to get started</p>
+        </div>
+
+        <div className="mb-6">
+          <GoogleAuthButton role="salonowner" label="Sign up with Google" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 rounded-xl border bg-white p-6 shadow-sm">
@@ -148,6 +153,12 @@ function Register() {
 }
 
 export default Register
+
+
+
+
+
+
 
 
 
